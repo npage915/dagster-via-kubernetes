@@ -62,12 +62,7 @@ gsutil mb gs://$GOOGLE_CLOUD_PROJECT
 
 While the Dagster helm chart deploys PostgreSQL in the cluster, this deployment will connect to a Cloud SQL instance via a private ip.
 ```sh
-gcloud compute addresses create google-managed-services-default \
-    --global \
-    --purpose=VPC_PEERING \
-    --prefix-length=16 \
-    --description="peering range" \
-    --network=default;
+gcloud compute addresses create google-managed-services-default \ --global --purpose=VPC_PEERING --prefix-length=16 --description="peering range" --network=default;
 
 gcloud services vpc-peerings connect \
     --service=servicenetworking.googleapis.com \
@@ -89,53 +84,38 @@ gcloud sql databases create 'dagster' --instance=dagster;
 # TODO: set the postgres user password
 
 # create artifact registry repository
-gcloud artifacts repositories create dagster \
-    --project=$GOOGLE_CLOUD_PROJECT \
-    --repository-format=docker \
-    --location=us-central1 \
-    --description="Docker repository";
+gcloud artifacts repositories create dagster --project=$GOOGLE_CLOUD_PROJECT --repository-format=docker --location=us-central1 --description="Docker repository";
 
 # create gke autopilot cluster
-gcloud container clusters create-auto kubefun --region us-central1;
+gcloud container clusters create-auto kubefun1 --region us-central1; --enable-private-nodes --network "projects/pcs-ed-fi/global/networks/default" --subnetwork "projects/pcs-ed-fi/regions/us-central1/subnetworks/default" --cluster-ipv4-cidr "/17" --services-ipv4-cidr "/22"
 
-kubectl create secret generic dagster-gcs-bucket-name --from-literal=GCS_BUCKET_NAME=main-form-349700;
-kubectl create secret generic dagster-postgresql-secret --from-literal=postgresql-password='SecretPassword';
+kubectl create secret generic dagster-gcs-bucket-name --from-literal=GCS_BUCKET_NAME=dagster-prod-pcs-ed-fi;
+kubectl create secret generic dagster-postgresql-secret --from-literal=postgresql-password='X@8Kdg|x6:Fr';
 
 helm repo add dagster https://dagster-io.github.io/helm ;
 
 helm repo update;
 
-gcloud builds submit \
-    --tag us-central1-docker.pkg.dev/$GOOGLE_CLOUD_PROJECT/dagster/dagster .;
+gcloud builds submit --tag us-central1-docker.pkg.dev/pcs-ed-fi/dagster/dagster .;
 
 helm upgrade --install dagster dagster/dagster -f values.yaml;
 
-kubectl create configmap dagster-lea-vars \
-    --from-literal GCS_BUCKET_DEV='dagster-dev-bucket-name' \
-    --from-literal GCS_BUCKET_PROD='dagster-prod-bucket-name' \
-    --from-literal DBT_PROJECT_DIR='/opt/dagster/app/dbt' \
-    --from-literal DBT_PROFILES_DIR='/opt/dagster/app';
+kubectl create configmap dagster-lea-vars --from-literal GCS_BUCKET_DEV='dagster-dev-bucket-name' --from-literal GCS_BUCKET_PROD='dagster-prod-bucket-name'  --from-literal DBT_PROJECT_DIR='/opt/dagster/app/dbt' --from-literal DBT_PROFILES_DIR='/opt/dagster/app';
 
-kubectl create secret generic dagster-edfi-api \
-    --from-literal EDFI_BASE_URL='XXXXXXXX' \
-    --from-literal EDFI_API_KEY='XXXXXXXX' \
-    --from-literal EDFI_API_SECRET='XXXXXXXX';
+kubectl create secret generic dagster-edfi-api  --from-literal EDFI_BASE_URL='xxx'  --from-literal EDFI_API_KEY='xxx' --from-literal EDFI_API_SECRET='xxx';
 
 # bind kubernetes service account to google service account
-gcloud iam service-accounts add-iam-policy-binding \
-  --role="roles/iam.workloadIdentityUser" \
-  --member="serviceAccount:$GOOGLE_CLOUD_PROJECT.svc.id.goog[default/dagster]" \
-  dagster@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com;
+gcloud iam service-accounts add-iam-policy-binding  --role="roles/iam.workloadIdentityUser" --member="serviceAccount:pcs-ed-fi.svc.id.goog[default/dagster]"  dagster@pcs-ed-fi.iam.gserviceaccount.com;
 
-kubectl annotate serviceaccount \
-  default \
-  iam.gke.io/gcp-service-account=dagster@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com;
+kubectl annotate serviceaccount default iam.gke.io/gcp-service-account=dagster@pcs-ed-fi.iam.gserviceaccount.com;
 
-kubectl annotate serviceaccount \
-  dagster \
-  iam.gke.io/gcp-service-account=dagster@$GOOGLE_CLOUD_PROJECT.iam.gserviceaccount.com;
+kubectl annotate serviceaccount dagster iam.gke.io/gcp-service-account=dagster@pcs-ed-fi.iam.gserviceaccount.com;
+
+kubectl rollout restart deployment user-code-dagster-user-deployments-pcs;
 
 export DAGIT_POD_NAME=$(kubectl get pods --namespace default -l "app.kubernetes.io/name=dagster,app.kubernetes.io/instance=dagster,component=dagit" -o jsonpath="{.items[0].metadata.name}")
 
 kubectl --namespace default port-forward $DAGIT_POD_NAME 8080:80;
 ```
+
+kubectl --namespace default port-forward dagster-dagit-8556fbbb8-2wqrs 8080:80;
