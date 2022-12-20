@@ -3,9 +3,9 @@ global:
   serviceAccountName: "dagster"
 
 deployments:
-  - name: "user-code-deployment-host-name"
+  - name: "user-code-deployment-pcs"
     image:
-      repository: "us-central1-docker.pkg.dev/gcp-project-id/dagster/dagster"
+      repository: "us-central1-docker.pkg.dev/pcs-ed-fi/dagster/dagster"
       tag: latest
       pullPolicy: Always
     dagsterApiGrpcArgs:
